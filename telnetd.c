@@ -46,6 +46,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "telnetd.h"
 #include "networking.h"
 #include "grbl/protocol.h"
+#include "grbl/state_machine.h"
+
+#if VELOCITY_JOG_ENABLE
+#include "plugins/direct_motion.h"
+#endif
 
 #ifndef TELNETD_TCP_PRIO
 #define TELNETD_TCP_PRIO TCP_PRIO_MIN
@@ -149,7 +154,19 @@ static bool streamRxPutC (char c)
     // discard input if MPG has taken over...
     if(!(mpg = hal.stream.type == StreamType_MPG)) {
         if(xSemaphoreTake(rx_mux, portMAX_DELAY) == pdTRUE) {
+#if VELOCITY_JOG_ENABLE
+            if(direct_motion_telnet_rx_byte((uint8_t)c)) {
+                xSemaphoreGive(rx_mux);
+                return true;
+            }
+#endif
             if(!enqueue_realtime_command(c)) {                              // If not a real time command attempt to buffer it
+#if VELOCITY_JOG_ENABLE
+                if(state_get() == STATE_JOG) {
+                    xSemaphoreGive(rx_mux);
+                    return true;
+                }
+#endif
                 uint_fast16_t next_head = BUFNEXT(streamSession.rxbuf.head, streamSession.rxbuf);
                 if((overflow = next_head == streamSession.rxbuf.tail))      // If buffer full
                     streamSession.rxbuf.overflow = true;                    // flag overflow
