@@ -185,10 +185,23 @@ static bool streamRxPutC (char c)
 static bool streamPutC (const uint8_t c)
 {
     uint_fast16_t next_head = BUFNEXT(streamSession.txbuf.head, streamSession.txbuf);
+    uint16_t spins = 0;
 
     while(streamSession.txbuf.tail == next_head) {  // Buffer full, block until space is available...
+        // Try to actively drain queued TX while waiting for space.
+        telnet_stream_handler(&streamSession);
+
+        // Connection gone: do not block forever.
+        if(streamSession.pcb == NULL)
+            return false;
+
         if(!hal.stream_blocking_callback())
             return false;
+
+        // Robustness under flooding: break potential deadlock by dropping
+        // the oldest queued byte if no progress is made for too long.
+        if(++spins > (TX_BUFFER_SIZE * 4u))
+            streamSession.txbuf.tail = BUFNEXT(streamSession.txbuf.tail, streamSession.txbuf);
     }
 
     streamSession.txbuf.data[streamSession.txbuf.head] = c; // Add data to buffer
@@ -535,7 +548,7 @@ void telnet_stream_handler (sessiondata_t *session)
 
         if(err == ERR_OK) {
             if(tx_len != len)
-                memmove(txbuf, &txbuf[len + 1], tx_len - len);
+                memmove(txbuf, &txbuf[len], tx_len - len);
             tx_len -= len;
             tcp_output(session->pcb);
             session->lastSendTime = xTaskGetTickCount();
