@@ -1253,6 +1253,8 @@ static err_t websocketd_accept (void *arg, struct tcp_pcb *pcb, err_t err)
 
     tcp_accepted(pcb);
     tcp_setprio(pcb, WEBSOCKETD_TCP_PRIO);
+    // Nagle + host delayed ACK batches small status reports into irregular bursts
+    tcp_nagle_disable(pcb);
     tcp_arg(pcb, session);
     tcp_recv(pcb, http_recv);
     tcp_err(pcb, websocket_err);

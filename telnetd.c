@@ -459,6 +459,8 @@ static err_t telnet_accept (void *arg, struct tcp_pcb *pcb, err_t err)
 
     tcp_accepted(pcb);
     tcp_setprio(pcb, TELNETD_TCP_PRIO);
+    // Nagle + host delayed ACK batches small status reports into irregular bursts
+    tcp_nagle_disable(pcb);
     tcp_recv(pcb, telnet_recv);
     tcp_err(pcb, telnet_err);
     tcp_poll(pcb, telnet_poll, TELNETD_POLL_INTERVAL);
