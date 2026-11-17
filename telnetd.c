@@ -151,6 +151,10 @@ static bool streamRxPutC (char c)
 {
     bool mpg, overflow = false;
 
+#if defined(CLIENT_SUPERVISION_ENABLE) && CLIENT_SUPERVISION_ENABLE
+    stream_client_supervision_rx();
+#endif
+
     // discard input if MPG has taken over...
     if(!(mpg = hal.stream.type == StreamType_MPG)) {
         if(xSemaphoreTake(rx_mux, portMAX_DELAY) == pdTRUE) {
